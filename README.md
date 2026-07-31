@@ -1,33 +1,72 @@
-# **n8n-render README**
+# n8n on Render
 
-Successfully deploy n8n on Render using Docker with the latest configurations and best practices.
+Deploy a persistent n8n instance on Render with Docker and Render Postgres.
 
-## Quick Start
-1. Fork this repository or use it as a template
-2. Open your Render Dashboard and use this repo as a Blueprint
-3. Update the `WEBHOOK_URL` environment variable in `render.yaml` to your domain
-4. Deploy and enjoy!
+## What this configuration fixes
 
-## Important Notes
-- **Do not change the storage volume mount path** (`/home/node/.n8n`) - this is hardcoded in n8n
-- The `.env` file contains examples that can be added manually as Environment Variables in Render
-- Always set the `WEBHOOK_URL` to your actual domain to avoid localhost issues
-- Uses the latest n8n Docker image with automatic updates
+- Pins n8n to `2.31.1` instead of tracking the moving `latest` tag.
+- Includes the PostgreSQL connection-recovery fix that bounds pool teardown.
+- Gives Node.js a 1 GB heap on the Render Standard service.
+- Limits production concurrency and stores binary data on the persistent disk.
+- Adds database startup retries and conservative pool settings.
+- Derives the public editor and webhook URLs from `RENDER_EXTERNAL_HOSTNAME`.
+- Uses `/healthz/readiness` so Render only routes traffic after PostgreSQL is ready.
+- Disables unverified community packages by default.
 
-## What's Updated (2025)
-- ✅ Updated to use current Render database plans (flexible pricing)
-- ✅ Added required `WEBHOOK_URL` environment variable
-- ✅ Updated database instance types to current options
-- ✅ Improved documentation and setup instructions
-- ✅ Compatible with latest n8n versions (1.94.1+)
+## Deploy
 
-## Environment Variables
-The following variables should be configured in your Render dashboard:
-- `WEBHOOK_URL` - Your n8n domain (e.g., `https://your-app.onrender.com/`)
-- `N8N_ENCRYPTION_KEY` - Generate a secure random string
-- Database connection variables are auto-populated by Render
+1. Create or sync a Render Blueprint from this repository.
+2. Keep the web service on the `standard` plan. A small/free instance does not provide enough memory for current n8n releases.
+3. Enter `N8N_ENCRYPTION_KEY` when Render prompts for it. Generate a long random value and keep it unchanged for the lifetime of the instance.
+4. Deploy the Blueprint and verify that `/healthz/readiness` returns a successful response.
+
+The Blueprint creates:
+
+- One Docker web service.
+- One `basic-1gb` Render Postgres database.
+- One 5 GB persistent disk mounted at `/home/node/.n8n`.
+
+## Existing deployments
+
+Do not replace an existing `N8N_ENCRYPTION_KEY`. Rotating it without following n8n's encryption-key migration process makes previously saved credentials unreadable.
+
+After merging configuration changes, open the Render Blueprint page, run **Sync Blueprint**, confirm that the service plan remains **Standard**, and deploy the latest commit.
+
+## Custom domains
+
+For the default `onrender.com` hostname, no URL variables are required. `render-entrypoint.sh` derives `N8N_HOST`, `N8N_EDITOR_BASE_URL`, and `N8N_WEBHOOK_URL` automatically from `N8N_PROTOCOL` and the public hostname.
+
+For a custom domain, set these variables in the Render dashboard:
+
+```text
+N8N_PROTOCOL=https
+N8N_HOST=n8n.example.com
+N8N_EDITOR_BASE_URL=https://n8n.example.com
+N8N_WEBHOOK_URL=https://n8n.example.com/
+```
+
+## Community packages
+
+The Blueprint sets `N8N_UNVERIFIED_PACKAGES_ENABLED=false` as a secure production default. Verified community packages remain available. Set the variable to `true` only when an administrator has reviewed and explicitly approved the required unverified package.
+
+## Backing up workflows
+
+`export_workflows.sh` defaults to the same pinned n8n version as the deployed service. Override `N8N_VERSION` only when intentionally exporting with another compatible version.
 
 ## Troubleshooting
-- If webhooks aren't working, ensure `WEBHOOK_URL` is set to your actual domain
-- For data persistence issues, verify the mount path is exactly `/home/node/.n8n`
-- Check Render logs for any startup issues
+
+### JavaScript heap out of memory
+
+Confirm that the web service uses the Standard plan and that `NODE_OPTIONS` is `--max-old-space-size=1024`. Do not raise the heap above the available instance memory.
+
+### Database connection timed out
+
+Confirm that the web service and database are healthy and in the same Render region. The Blueprint uses Render's private Postgres hostname and retries transient startup failures. The `/healthz/readiness` endpoint remains unhealthy until n8n can reach PostgreSQL and finish migrations.
+
+### Python task runner warning
+
+The official n8n image can report that Python 3 is unavailable for the internal Python runner. This warning is separate from the JavaScript heap crash and does not prevent normal JavaScript workflows from starting.
+
+## Updating n8n
+
+Do not change the Docker image or `export_workflows.sh` back to `n8nio/n8n:latest`. Upgrade the pinned version intentionally, review the n8n release notes, back up PostgreSQL, and deploy the new version through a pull request.
