@@ -6,7 +6,7 @@ services:
     plan: standard
     branch: main
     numInstances: 1
-    healthCheckPath: /healthz
+    healthCheckPath: /healthz/readiness
     envVars:
       - key: DB_TYPE
         value: postgresdb
@@ -81,7 +81,7 @@ services:
       - key: N8N_DEFAULT_BINARY_DATA_MODE
         value: filesystem
       - key: N8N_UNVERIFIED_PACKAGES_ENABLED
-        value: "true"
+        value: "false"
       - key: N8N_RUNNERS_TASK_TIMEOUT
         value: "60"
       - key: N8N_COMPRESSION_NODE_MAX_DECOMPRESSED_SIZE_BYTES
