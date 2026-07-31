@@ -1,42 +1,72 @@
-# n8n on Render
+# n8n on Render Free
 
-Deploy a persistent n8n instance on Render with Docker and Render Postgres.
+Run a lightweight n8n instance on a Render Free web service without a separate PostgreSQL service.
 
-## What this configuration fixes
+n8n still requires an internal state store, so this profile uses the built-in SQLite database at `/home/node/.n8n/database.sqlite`. It does not create or connect to an external database.
 
-- Pins n8n to `2.31.1` instead of tracking the moving `latest` tag.
-- Includes the PostgreSQL connection-recovery fix that bounds pool teardown.
-- Gives Node.js a 1 GB heap on the Render Standard service.
-- Limits production concurrency and stores binary data on the persistent disk.
-- Adds database startup retries and conservative pool settings.
-- Derives the public editor and webhook URLs from `RENDER_EXTERNAL_HOSTNAME`.
-- Uses `/healthz/readiness` so Render only routes traffic after PostgreSQL is ready.
-- Disables unverified community packages by default.
+## Free profile
+
+- Uses the Render `free` web-service plan.
+- Pins n8n to `1.123.65`, the maintained v1 release used by this low-memory profile.
+- Limits the Node.js heap to 320 MB.
+- Runs only one production execution at a time.
+- Disables task runners, diagnostics, templates, personalization, and version notifications.
+- Keeps at most 100 executions for 24 hours and does not save execution payloads.
+- Stores binary data on the local filesystem instead of the JavaScript heap.
+- Uses SQLite automatically; no `databases:` or persistent `disk:` resource is defined.
+
+## Important: data is temporary
+
+Render Free web services have an ephemeral filesystem and cannot attach a persistent disk. Render also spins a Free service down after it has been idle. When the service spins down, restarts, or redeploys, the local SQLite database is deleted.
+
+This means all of the following can disappear:
+
+- Owner account and settings.
+- Workflows and activation state.
+- Credentials.
+- Execution history.
+- Community packages and other local files.
+
+There is no code-only fix for this limitation. Use this profile only for temporary testing or demos. To preserve SQLite without an external database, move the web service to a paid Render instance and attach a persistent disk at `/home/node/.n8n`.
 
 ## Deploy
 
-1. Create or sync a Render Blueprint from this repository.
-2. Keep the web service on the `standard` plan. A small/free instance does not provide enough memory for current n8n releases.
-3. Enter `N8N_ENCRYPTION_KEY` when Render prompts for it. Generate a long random value and keep it unchanged for the lifetime of the instance.
-4. Deploy the Blueprint and verify that `/healthz/readiness` returns a successful response.
+1. Merge the free-profile pull request.
+2. Open the Render Blueprint and run **Sync Blueprint**.
+3. Confirm that the web service instance type is **Free**.
+4. Set `N8N_ENCRYPTION_KEY` to a long random value in the Render environment.
+5. Deploy the latest commit.
+6. Verify that `/healthz` returns a successful response.
 
-The Blueprint creates:
+## Existing service previously using PostgreSQL
 
-- One Docker web service.
-- One `basic-1gb` Render Postgres database.
-- One 5 GB persistent disk mounted at `/home/node/.n8n`.
+Before redeploying, remove these variables from the Render service's manually configured environment variables:
 
-## Existing deployments
+```text
+DB_TYPE
+DB_POSTGRESDB_HOST
+DB_POSTGRESDB_DATABASE
+DB_POSTGRESDB_PORT
+DB_POSTGRESDB_USER
+DB_POSTGRESDB_PASSWORD
+DB_POSTGRESDB_SCHEMA
+DB_POSTGRESDB_POOL_SIZE
+DB_POSTGRESDB_CONNECTION_TIMEOUT
+DB_POSTGRESDB_DESTROY_TIMEOUT_MS
+DB_STARTUP_CONNECT_MAX_RETRIES
+DB_PING_INTERVAL_SECONDS
+DB_PING_MAX_FAILURES_BEFORE_RECOVERY
+```
 
-Do not replace an existing `N8N_ENCRYPTION_KEY`. Rotating it without following n8n's encryption-key migration process makes previously saved credentials unreadable.
+Also remove any old manual `NODE_OPTIONS=--max-old-space-size=1024` value. The Free profile uses `--max-old-space-size=320` and bakes that limit into the Docker image so it still applies if Blueprint variables have not synced yet.
 
-After merging configuration changes, open the Render Blueprint page, run **Sync Blueprint**, confirm that the service plan remains **Standard**, and deploy the latest commit.
+The old Render Postgres resource is no longer referenced by `render.yaml`. Delete that database separately from the Render Dashboard only after confirming that you no longer need its data.
 
 ## Custom domains
 
-For the default `onrender.com` hostname, no URL variables are required. `render-entrypoint.sh` derives `N8N_HOST`, `N8N_EDITOR_BASE_URL`, and `N8N_WEBHOOK_URL` automatically from `N8N_PROTOCOL` and the public hostname.
+For the default `onrender.com` hostname, no URL variables are required. `render-entrypoint.sh` derives the public URLs automatically.
 
-For a custom domain, set these variables in the Render dashboard:
+For a custom domain, configure:
 
 ```text
 N8N_PROTOCOL=https
@@ -45,28 +75,25 @@ N8N_EDITOR_BASE_URL=https://n8n.example.com
 N8N_WEBHOOK_URL=https://n8n.example.com/
 ```
 
-## Community packages
+## Memory limits
 
-The Blueprint sets `N8N_UNVERIFIED_PACKAGES_ENABLED=false` as a secure production default. Verified community packages remain available. Set the variable to `true` only when an administrator has reviewed and explicitly approved the required unverified package.
+The Free profile is intended for small webhook, HTTP, scheduling, and data-transformation tests. AI Agent, LLM, large file, large JSON, and high-concurrency workflows can still exceed 512 MB total memory.
 
-## Backing up workflows
+If the process still runs out of memory:
 
-`export_workflows.sh` defaults to the same pinned n8n version as the deployed service. Override `N8N_VERSION` only when intentionally exporting with another compatible version.
+1. Confirm the deployed image is `n8nio/n8n:1.123.65`.
+2. Confirm the log or environment shows `NODE_OPTIONS=--max-old-space-size=320`.
+3. Confirm `N8N_RUNNERS_ENABLED=false` and concurrency is `1`.
+4. Remove heavy AI/file-processing nodes or use a service with at least 1 GB RAM.
 
-## Troubleshooting
+## Python runner warning
 
-### JavaScript heap out of memory
+Task runners are disabled in this low-memory profile. Python Code nodes are therefore not supported. Use JavaScript Code nodes for lightweight tests.
 
-Confirm that the web service uses the Standard plan and that `NODE_OPTIONS` is `--max-old-space-size=1024`. Do not raise the heap above the available instance memory.
+## Backups
 
-### Database connection timed out
-
-Confirm that the web service and database are healthy and in the same Render region. The Blueprint uses Render's private Postgres hostname and retries transient startup failures. The `/healthz/readiness` endpoint remains unhealthy until n8n can reach PostgreSQL and finish migrations.
-
-### Python task runner warning
-
-The official n8n image can report that Python 3 is unavailable for the internal Python runner. This warning is separate from the JavaScript heap crash and does not prevent normal JavaScript workflows from starting.
+Render Free does not provide shell access or persistent storage. Export important workflows from the n8n UI before a restart, redeploy, or idle spin-down. `export_workflows.sh` is intended only for local Docker installations where `/home/node/.n8n` is available.
 
 ## Updating n8n
 
-Do not change the Docker image or `export_workflows.sh` back to `n8nio/n8n:latest`. Upgrade the pinned version intentionally, review the n8n release notes, back up PostgreSQL, and deploy the new version through a pull request.
+Do not switch back to `latest`. Upgrade the pinned image deliberately and confirm that the selected release can start within the Free instance memory limit before deploying it.
