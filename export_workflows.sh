@@ -9,10 +9,12 @@ set -euo pipefail
 EXPORT_DIR="${1:-n8n-export-$(date +%Y%m%d-%H%M%S)}"
 DATA_FOLDER="${DATA_FOLDER:-/home/node/.n8n}"
 BACKUP_ROOT="${BACKUP_ROOT:-/backup}"
+N8N_VERSION="${N8N_VERSION:-2.31.1}"
 
 echo "Starting n8n workflow export..."
 echo "Export directory: $EXPORT_DIR"
 echo "Data folder: $DATA_FOLDER"
+echo "n8n version: $N8N_VERSION"
 
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_ROOT"
@@ -25,7 +27,7 @@ docker run --rm \
     -e GENERIC_TIMEZONE="${GENERIC_TIMEZONE:-UTC}" \
     -e TZ="${TZ:-UTC}" \
     -u node \
-    n8nio/n8n:latest \
+    "n8nio/n8n:${N8N_VERSION}" \
     n8n export:workflow --backup --output="/backup/$EXPORT_DIR/" --data="/home/node/.n8n"
 
 echo "✅ Workflows exported successfully to: $BACKUP_ROOT/$EXPORT_DIR/"
