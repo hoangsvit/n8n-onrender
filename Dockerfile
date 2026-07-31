@@ -5,6 +5,7 @@ FROM n8nio/n8n:1.123.65
 # Bake critical limits into the image so they apply even when an existing Render
 # service has not yet synced the Blueprint environment variables.
 ENV NODE_OPTIONS="--max-old-space-size=320" \
+    N8N_PUSH_BACKEND="sse" \
     N8N_RUNNERS_ENABLED="false" \
     N8N_DIAGNOSTICS_ENABLED="false" \
     N8N_VERSION_NOTIFICATIONS_ENABLED="false" \
