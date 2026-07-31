@@ -1,12 +1,12 @@
 services:
   - type: web
     name: n8n
-    env: docker
-    region: oregon # optional (defaults to oregon)
-    plan: standard # optional (defaults to starter)
-    branch: main # optional (defaults to master)
+    runtime: docker
+    region: oregon
+    plan: standard
+    branch: main
     numInstances: 1
-    healthCheckPath: /
+    healthCheckPath: /healthz
     envVars:
       - key: DB_TYPE
         value: postgresdb
@@ -32,28 +32,62 @@ services:
           property: password
       - key: DB_POSTGRESDB_SCHEMA
         value: public
-      - key: WEBHOOK_URL
-        value: https://your-n8n-app.onrender.com/
+      - key: DB_POSTGRESDB_POOL_SIZE
+        value: "2"
+      - key: DB_POSTGRESDB_CONNECTION_TIMEOUT
+        value: "30000"
+      - key: DB_POSTGRESDB_DESTROY_TIMEOUT_MS
+        value: "10000"
+      - key: DB_STARTUP_CONNECT_MAX_RETRIES
+        value: "10"
+      - key: DB_PING_INTERVAL_SECONDS
+        value: "10"
+      - key: DB_PING_MAX_FAILURES_BEFORE_RECOVERY
+        value: "5"
       - key: N8N_ENCRYPTION_KEY
-        value: YOUR_ENCRYPTION_KEY_HERE
+        sync: false
+      - key: N8N_LISTEN_ADDRESS
+        value: 0.0.0.0
+      - key: N8N_PORT
+        value: "5678"
+      - key: N8N_PROXY_HOPS
+        value: "1"
+      - key: N8N_SECURE_COOKIE
+        value: "true"
       - key: GENERIC_TIMEZONE
-        value: America/Sao_Paulo
+        value: Asia/Ho_Chi_Minh
       - key: TZ
-        value: America/Sao_Paulo
+        value: Asia/Ho_Chi_Minh
       - key: N8N_LOG_LEVEL
         value: info
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=1024
+      - key: N8N_CONCURRENCY_PRODUCTION_LIMIT
+        value: "5"
       - key: EXECUTIONS_DATA_PRUNE
-        value: true
+        value: "true"
       - key: EXECUTIONS_DATA_MAX_AGE
-        value: 168
+        value: "168"
+      - key: EXECUTIONS_DATA_PRUNE_MAX_COUNT
+        value: "10000"
       - key: EXECUTIONS_DATA_SAVE_ON_ERROR
         value: all
       - key: EXECUTIONS_DATA_SAVE_ON_SUCCESS
         value: none
       - key: EXECUTIONS_DATA_SAVE_ON_PROGRESS
-        value: false
+        value: "false"
       - key: EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS
-        value: false
+        value: "false"
+      - key: N8N_DEFAULT_BINARY_DATA_MODE
+        value: filesystem
+      - key: N8N_UNVERIFIED_PACKAGES_ENABLED
+        value: "true"
+      - key: N8N_RUNNERS_TASK_TIMEOUT
+        value: "60"
+      - key: N8N_COMPRESSION_NODE_MAX_DECOMPRESSED_SIZE_BYTES
+        value: "268435456"
+      - key: N8N_COMPRESSION_NODE_MAX_ZIP_ENTRIES
+        value: "1000"
     disk:
       name: n8n-disk
       mountPath: /home/node/.n8n
