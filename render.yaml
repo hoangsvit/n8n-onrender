@@ -19,7 +19,7 @@ services:
       - key: N8N_SECURE_COOKIE
         value: "true"
       - key: N8N_PUSH_BACKEND
-        value: sse
+        value: websocket
       - key: GENERIC_TIMEZONE
         value: Asia/Ho_Chi_Minh
       - key: TZ
